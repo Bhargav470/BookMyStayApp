@@ -1,36 +1,42 @@
 package com.hotel.app;
 
-// ---------------- NEW: CONCURRENT BOOKING PROCESSOR ----------------
-class ConcurrentBookingProcessor implements Runnable {
+// ---------------- NEW: PERSISTENCE SERVICE ----------------
+class PersistenceService {
 
-    private final BookingQueue queue;
-    private final BookingService bookingService;
+    private static final String FILE_NAME = "hotel_state.dat";
 
-    public ConcurrentBookingProcessor(BookingQueue queue, BookingService bookingService) {
-        this.queue = queue;
-        this.bookingService = bookingService;
+    // SAVE
+    public void save(RoomInventory inventory, List<Reservation> history) {
+
+        try (ObjectOutputStream oos =
+                     new ObjectOutputStream(new FileOutputStream(FILE_NAME))) {
+
+            oos.writeObject(inventory);
+            oos.writeObject(history);
+
+            System.out.println("💾 State saved successfully.");
+
+        } catch (Exception e) {
+            System.out.println("⚠️ Save failed: " + e.getMessage());
+        }
     }
 
-    @Override
-    public void run() {
-        process();
-    }
+    // LOAD
+    public Object[] load() {
 
-    // Critical section
-    private void process() {
+        try (ObjectInputStream ois =
+                     new ObjectInputStream(new FileInputStream(FILE_NAME))) {
 
-        while (true) {
-            Reservation r;
+            RoomInventory inventory = (RoomInventory) ois.readObject();
+            List<Reservation> history = (List<Reservation>) ois.readObject();
 
-            synchronized (queue) {
-                if (queue.isEmpty()) return;
-                r = queue.getNext();
-            }
+            System.out.println("♻️ State restored successfully.");
 
-            // synchronized booking to prevent race condition
-            synchronized (bookingService) {
-                bookingService.processSingleBooking(r);
-            }
+            return new Object[]{inventory, history};
+
+        } catch (Exception e) {
+            System.out.println("⚠️ No previous state found. Starting fresh.");
+            return null;
         }
     }
 }
