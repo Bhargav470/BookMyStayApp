@@ -1,29 +1,36 @@
 package com.hotel.app;
 
-// ---------------- NEW: CANCELLATION SERVICE ----------------
-class CancellationService {
+// ---------------- NEW: CONCURRENT BOOKING PROCESSOR ----------------
+class ConcurrentBookingProcessor implements Runnable {
 
-    private final RoomInventory inventory;
-    private final Stack<String> rollbackStack = new Stack<>();
+    private final BookingQueue queue;
+    private final BookingService bookingService;
 
-    public CancellationService(RoomInventory inventory) {
-        this.inventory = inventory;
+    public ConcurrentBookingProcessor(BookingQueue queue, BookingService bookingService) {
+        this.queue = queue;
+        this.bookingService = bookingService;
     }
 
-    public void cancel(Reservation r) {
+    @Override
+    public void run() {
+        process();
+    }
 
-        if (r == null || r.roomId == null) {
-            System.out.println("❌ Invalid cancellation request");
-            return;
+    // Critical section
+    private void process() {
+
+        while (true) {
+            Reservation r;
+
+            synchronized (queue) {
+                if (queue.isEmpty()) return;
+                r = queue.getNext();
+            }
+
+            // synchronized booking to prevent race condition
+            synchronized (bookingService) {
+                bookingService.processSingleBooking(r);
+            }
         }
-
-        // Push to stack (LIFO)
-        rollbackStack.push(r.roomId);
-
-        // Restore inventory
-        inventory.increment(r.roomType);
-
-        System.out.println("🔄 Booking Cancelled:");
-        System.out.println("Room ID Released: " + r.roomId);
     }
 }
